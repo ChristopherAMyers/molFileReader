@@ -1,41 +1,71 @@
 import numpy as np
 import os, sys
 
-class XYZ:
+class _Components:
     def __init__(self):
         self.atoms = []
         self.coords = []
         self.comment = ""
         self.n_atoms = 0
 
+class XYZ(_Components):
+    def __init__(self):
+        super(XYZ, self).__init__()
+        #_Components.__init__(self)
+        self.frames = list([_Components()])
+        self.frames.clear()
+
+    def set_frame_num(self, idx):
+        self.coords = self.frames[idx].coords
+        self.atoms= self.frames[idx].atoms
+        self.n_atoms = self.frames[idx].n_atoms
+        self.comment = self.frames[idx].comment
+
     def import_xyz(self, fileLoc):
+        print("LEN: ", len(self.frames))
         if os.path.isfile(fileLoc):
             with open(fileLoc, 'r') as file:
-                for n, line in enumerate(file.readlines()):
-                    if n == 1:
-                        self.comment = line
-                    else:
-                        line = line.split()
-                        if n == 0:
-                            self.n_atoms = int(line[0])
-                        elif len(line) == 0:
-                            break
+                count = 2
+                numAtoms = 0
+                for line in file.readlines():
+                    
+                    #   if reached the number of atoms, add to frames
+                    if count == numAtoms + 2:
+                        if len(self.frames) != 0:
+                            if self.frames[-1].n_atoms != len(self.frames[-1].atoms):
+                                print("WARNING: Found " + str(len(self.frames[-1].atoms)) + " atoms in XYZ file:")
+                                print("         " + fileLoc)
+                                print("         but should be " + str(self.frames[-1].n_atoms))
+                                self.frames[-1].n_atoms = len(self.frames[-1].atoms)
+                        count = 0
+
+                    #   exit import if a blank line is found
+                    if line not in ['\n', '\r\n']:
+                        if count == 0:
+                            self.frames.append(_Components())
+                            line = line.split()
+                            self.frames[-1].n_atoms = int(line[0])
+                            numAtoms = int(line[0])
+                        elif count == 1:
+                            self.frames[-1].comment = line
                         else:
-                            self.atoms.append(line[0])
-                            self.coords.append([float(line[1]), float(line[2]), float(line[3])])
-                        
+                            line = line.split()
+                            self.frames[-1].atoms.append(line[0])
+                            self.frames[-1].coords.append([float(line[1]), float(line[2]), float(line[3])])
+                        count += 1
+                    else:
+                        break
             
-            if self.n_atoms != len(self.atoms):
-                print("WARNING: Found " + str(len(self.atoms)) + " atoms in XYZ file:")
-                print("         " + fileLoc)
-                print("         but should be " + str(self.n_atoms))
-                self.n_atoms = len(self.atoms)
+
+            self.set_frame_num(0)
+            
             self.atoms = np.array(self.atoms)
             self.coords = np.array(self.coords)
         else:
             print("ERROR: File ", fileLoc, " not found!")
             print("Program will now terminate")
             exit()
+
 
     def add_atom(self, coord, atom):
         if not isinstance(self.coords, list):
@@ -47,7 +77,6 @@ class XYZ:
         self.coords.append(coord)
         self.atoms.append(atom)
         self.n_atoms += 1
-
     
     def recenter(self, vec):
         '''
@@ -67,6 +96,16 @@ class XYZ:
         '''
         write_xyz(self.atoms, self.coords, fileName)
         
+
+class GRO(_Components):
+    def __init__(self):
+        self.res_nums = []
+        self.res_names = []
+        self.vels = []
+        self.names = []
+        self.box = []
+
+    
 
 def center(coord_list, centCoord):
     '''
