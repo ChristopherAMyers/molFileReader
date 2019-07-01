@@ -8,10 +8,23 @@ class _Components:
         self.comment = ""
         self.n_atoms = 0
 
+class _GroComps():
+    def __init__(self):
+        self.coords = []
+        self.comment = ""
+        self.n_atoms = 0
+        self.res_nums = []
+        self.res_names = []
+        self.vels = []
+        self.names = []
+        self.box = []
+        self.atom_num = []
+        self.time = None
+        
+
 class XYZ(_Components):
     def __init__(self):
         super(XYZ, self).__init__()
-        #_Components.__init__(self)
         self.frames = list([_Components()])
         self.frames.clear()
 
@@ -22,7 +35,6 @@ class XYZ(_Components):
         self.comment = self.frames[idx].comment
 
     def import_xyz(self, fileLoc):
-        print("LEN: ", len(self.frames))
         if os.path.isfile(fileLoc):
             with open(fileLoc, 'r') as file:
                 count = 2
@@ -99,13 +111,105 @@ class XYZ(_Components):
 
 class GRO(_Components):
     def __init__(self):
-        self.res_nums = []
-        self.res_names = []
-        self.vels = []
-        self.names = []
-        self.box = []
+        super(GRO, self).__init__()
+        self.frames = list([_GroComps()])
+        self.frames.clear()
 
-    
+    def set_frame_num(self, idx):
+        self.coords = self.frames[idx].coords
+        self.n_atoms = self.frames[idx].n_atoms
+        self.comment = self.frames[idx].comment
+        self.res_names = self.frames[idx].res_names
+        self.res_nums = self.frames[idx].res_nums
+        self.names = self.frames[idx].names
+        self.box = self.frames[idx].box
+        self.time = self.frames[idx].time
+        self.atom_num = self.frames[idx].atom_num
+
+    def _parse_add_line(self, line):
+        n = -1
+        self.frames[n].res_nums.append(int(line[:5]))
+        line = line[5:]
+
+        self.frames[n].res_names.append(line[:5].split()[0])
+        line = line[5:]
+
+        self.frames[n].names.append(line[:5].split()[0])
+        line = line[5:]
+
+        self.frames[n].atom_num.append(int(line[:5]))
+        line = line[5:]
+
+        x = float(line[:8])*10
+        line = line[8:]
+        y = float(line[:8])*10
+        line = line[8:]
+        z = float(line[:8])*10
+        line = line[8:]
+        self.frames[n].coords.append([x, y, z])
+
+        if len(line) > 0 and line not in ['\n', '\r\n']:
+            vx = float(line[:8])
+            line = line[8:]
+            vy = float(line[:8])
+            line = line[8:]
+            vz = float(line[:8])
+            line = line[8:]
+            self.frames[n].vels.append([vx, vy, vz])
+        else:
+            self.frames[n].vels.append([0.0, 0.0, 0.0])
+
+        
+
+    def import_gro(self, fileLoc):
+        if os.path.isfile(fileLoc):
+            with open(fileLoc, 'r') as file:
+                count = 3
+                numAtoms = 0
+                for line in file.readlines():
+                    
+                    #   if reached the number of atoms, add to frames
+                    if count == numAtoms + 3:
+                        if len(self.frames) != 0:
+                            if self.frames[-1].n_atoms != len(self.frames[-1].coords):
+                                print("WARNING: Found " + str(len(self.frames[-1].coords)) + " atoms in XYZ file:")
+                                print("         " + fileLoc)
+                                print("         but should be " + str(self.frames[-1].n_atoms))
+                                self.frames[-1].n_atoms = len(self.coords[-1].atoms)
+                        count = 0
+
+                    #   exit import if a blank line is found
+                    if line not in ['\n', '\r\n']:
+                        if count == numAtoms + 2:
+                            line = line.split()
+                            line = [float(x) for x in line]
+                            self.frames[-1].box = line[:3]
+                        elif count == 0:
+                            self.frames.append(_GroComps())
+                            line = line.split('t=')
+                            self.frames[-1].comment = line[0]
+                            if len(line) == 2:
+                                self.frames[-1].time = float(line[1])
+                        elif count == 1:
+                            line = line.split()
+                            self.frames[-1].n_atoms = int(line[0])
+                            numAtoms = int(line[0])
+                        
+                        else:
+                            self._parse_add_line(line)
+                        count += 1
+                    else:
+                        break
+            
+
+            self.set_frame_num(0)
+            
+            self.atoms = np.array(self.atoms)
+            self.coords = np.array(self.coords)
+        else:
+            print("ERROR: File ", fileLoc, " not found!")
+            print("Program will now terminate")
+            exit()
 
 def center(coord_list, centCoord):
     '''
@@ -251,7 +355,7 @@ def write_xyz(atoms, coords, xyzFile):
     new XYZ file 'xyzFile'
     '''
     n_atoms = len(atoms)
-    with open(xyzFile, 'w') as file:
+    with open(xyzFile, 'a') as file:
         file.write(str(int(n_atoms)) + "\n")
         file.write("Generated xyz file\n")
         for n in range(0, n_atoms):
