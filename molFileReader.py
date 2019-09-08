@@ -8,6 +8,7 @@ class _Components:
         self.comment = ""
         self.n_atoms = 0
 
+
 class _GroComps():
     def __init__(self):
         self.coords = []
@@ -80,15 +81,25 @@ class XYZ(_Components):
 
 
     def add_atom(self, coord, atom):
-        if not isinstance(self.coords, list):
-            print("ERROR: Molecule coordinates have been convered form a list")
-            exit()
-        if not isinstance(coord, list):
-            print("ERROR: new coordinate must be of type list")
-            exit()
-        self.coords.append(coord)
+        #if not isinstance(self.coords, list):
+        #    print("ERROR: Molecule coordinates have been convered form a list")
+        #    exit()
+        #if not isinstance(coord, list):
+        #    print("ERROR: new coordinate must be of type list")
+        #    exit()
+        self.coords.append(list(coord))
         self.atoms.append(atom)
         self.n_atoms += 1
+
+    def add_frame(self):
+        self.frames.append(_Components())
+        self.frames[-1].coords = self.coords
+        self.frames[-1].atoms = self.atoms
+        self.frames[-1].n_atoms = self.n_atoms
+        self.frames[-1].comment = self.comment
+        self.coords = []
+        self.atoms = []
+        self.n_atoms = 0
     
     def recenter(self, vec):
         '''
@@ -106,6 +117,11 @@ class XYZ(_Components):
         '''
         write coordinates to a new XYZ file
         '''
+        for n in range(len(self.frames)):
+            if n == 0:
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName)
+            else:
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a')
         write_xyz(self.atoms, self.coords, fileName)
         
 
@@ -349,13 +365,13 @@ def import_qmol(fileLoc):
         print("\tTotal charge:    {:3d}".format(mols[n][0]))
     return mols
 
-def write_xyz(atoms, coords, xyzFile):
+def write_xyz(atoms, coords, xyzFile, filemode = 'w'):
     '''
     write 'atoms' and 'coords' to a
     new XYZ file 'xyzFile'
     '''
     n_atoms = len(atoms)
-    with open(xyzFile, 'a') as file:
+    with open(xyzFile, filemode) as file:
         file.write(str(int(n_atoms)) + "\n")
         file.write("Generated xyz file\n")
         for n in range(0, n_atoms):
