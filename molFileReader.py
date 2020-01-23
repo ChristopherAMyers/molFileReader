@@ -123,6 +123,7 @@ class XYZ(_Components):
             else:
                 write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a')
         write_xyz(self.atoms, self.coords, fileName)
+        #write_xyz(self.atoms, self.coords, fileName, filemode='a')
         
 
 class GRO(_Components):
@@ -371,6 +372,8 @@ def write_xyz(atoms, coords, xyzFile, filemode = 'w'):
     new XYZ file 'xyzFile'
     '''
     n_atoms = len(atoms)
+    if n_atoms == 0:
+        return
     with open(xyzFile, filemode) as file:
         file.write(str(int(n_atoms)) + "\n")
         file.write("Generated xyz file\n")
