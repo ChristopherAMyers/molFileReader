@@ -92,15 +92,21 @@ class XYZ(_Components):
         self.atoms.append(atom)
         self.n_atoms += 1
 
-    def add_frame(self):
+    def add_frame(self, coords = np.array([]), commet = None):
         self.frames.append(_Components())
-        self.frames[-1].coords = self.coords
+        if len(coords) == 0:
+            self.frames[-1].coords = self.coords
+        else:
+            self.frames[-1].coords = np.copy(coords)
         self.frames[-1].atoms = self.atoms
         self.frames[-1].n_atoms = self.n_atoms
-        self.frames[-1].comment = self.comment
-        self.coords = []
-        self.atoms = []
-        self.n_atoms = 0
+        if commet == None:
+            self.frames[-1].comment = self.comment
+        else:
+            self.frames[-1].commet = commet
+        #self.coords = []
+        #self.atoms = []
+        #self.n_atoms = 0
     
     def recenter(self, vec):
         '''
@@ -135,7 +141,7 @@ class XYZ(_Components):
                 write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName)
             else:
                 write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a')
-        write_xyz(self.atoms, self.coords, fileName)
+        #write_xyz(self.atoms, self.coords, fileName)
         
 
 class GRO(_Components):
@@ -339,7 +345,6 @@ def orient_plane(coords, vec1, vec2):
     theta = np.pi*0.5 - np.arccos(allCoords[-1][2] / np.sqrt(allCoords[-1][1]**2 + allCoords[-1][2]**2))
     tmp = rotate_x(allCoords, -theta)
     if abs(tmp[-1][2]) > 1E-8:
-        print("OTHER")
         allCoords = rotate_x(allCoords, theta)
     else:
         allCoords = tmp
