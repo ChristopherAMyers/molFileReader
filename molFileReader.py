@@ -92,7 +92,7 @@ class XYZ(_Components):
         self.atoms.append(atom)
         self.n_atoms += 1
 
-    def add_frame(self, coords = np.array([]), commet = None):
+    def add_frame(self, coords = np.array([]), comment = None):
         self.frames.append(_Components())
         if len(coords) == 0:
             self.frames[-1].coords = self.coords
@@ -100,13 +100,10 @@ class XYZ(_Components):
             self.frames[-1].coords = np.copy(coords)
         self.frames[-1].atoms = self.atoms
         self.frames[-1].n_atoms = self.n_atoms
-        if commet == None:
+        if comment == None:
             self.frames[-1].comment = self.comment
         else:
-            self.frames[-1].commet = commet
-        #self.coords = []
-        #self.atoms = []
-        #self.n_atoms = 0
+            self.frames[-1].comment = comment
     
     def recenter(self, vec):
         '''
@@ -138,9 +135,9 @@ class XYZ(_Components):
         '''
         for n in range(len(self.frames)):
             if n == 0:
-                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName)
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, comment=self.frames[n].comment)
             else:
-                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a')
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a', comment=self.frames[n].comment)
         #write_xyz(self.atoms, self.coords, fileName)
         
 
@@ -440,7 +437,7 @@ def import_qmol(fileLoc):
         print("\tTotal charge:    {:3d}".format(mols[n][0]))
     return mols
 
-def write_xyz(atoms, coords, xyzFile, filemode = 'w'):
+def write_xyz(atoms, coords, xyzFile, filemode = 'w', comment="Generated xyz file"):
     '''
     write 'atoms' and 'coords' to a
     new XYZ file 'xyzFile'
@@ -448,7 +445,7 @@ def write_xyz(atoms, coords, xyzFile, filemode = 'w'):
     n_atoms = len(atoms)
     with open(xyzFile, filemode) as file:
         file.write(str(int(n_atoms)) + "\n")
-        file.write("Generated xyz file\n")
+        file.write("{:s}\n".format(comment))
         for n in range(0, n_atoms):
             file.write("{:3s}  {:13.8f}  {:13.8f}  {:13.8f}\n"
                 .format(atoms[n], coords[n][0], coords[n][1], coords[n][2]))
