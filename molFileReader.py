@@ -8,7 +8,6 @@ class _Components:
         self.comment = ""
         self.n_atoms = 0
 
-
 class _GroComps():
     def __init__(self):
         self.coords = []
@@ -21,7 +20,115 @@ class _GroComps():
         self.box = []
         self.atom_num = []
         self.time = None
-        
+
+class _QC_Components:
+    def __init__(self):
+        self.atoms = np.empty(0)
+        self.coords = np.empty((0, 3))
+        self.charge = 0
+        self.multiplicity = 0
+        self.n_atoms = 0
+
+class QC(_Components):
+    def __init__(self):
+        self.total_charge = 0
+        self.total_multiplicity = 1
+        self.fragments = list([_QC_Components()])
+        self.fragments.clear()
+        self.n_frags = 0
+        self.n_atoms = 0
+        self.other_lines = []
+
+    def import_qc(self, fileLoc):
+        if os.path.isfile(fileLoc):
+            with open(fileLoc, 'r') as file:
+                read_mol = False
+                line = file.readline()
+                found_mol = False
+                other_lines = []
+                while line:
+                    sp = line.split()
+                    if len(sp) == 0:
+                        other_lines.append(line)
+                        line = file.readline()
+                        continue
+
+                    #   found end of molecule section
+                    if sp[0].lower() == '$end' and found_mol:
+                        read_mol = False
+                        line = file.readline()
+                        continue
+
+                    #   separator signals a new fragment
+                    if sp[0] in ['-'*2, '-'*3, '-'*4]:
+
+                        self.fragments.append(_QC_Components())
+                        sp = file.readline().split()
+
+                        self.fragments[-1].charge = int(sp[0])
+                        self.fragments[-1].multiplicity = int(sp[1])
+                        line = file.readline()
+                        sp = line.split()
+                        read_mol = True
+                    
+                    #   record coordinates and element and add to current fragment
+                    if read_mol:
+                        coords = np.array([[float(x) for x in sp[1:4]]])
+                        self.fragments[-1].coords = np.append(self.fragments[-1].coords, coords, axis=0)
+                        self.fragments[-1].atoms = np.append(self.fragments[-1].atoms, sp[0])
+                        self.n_atoms += 1
+                        line = file.readline()
+
+                    #   start of molecule section 
+                    elif sp[0].lower() == '$molecule':
+                        found_mol = True
+                        line = file.readline()
+                        sp = line.split()
+                        if len(sp) != 2:
+                            print(" Wrong format for charge and multiplicity line")
+                            exit()
+                        self.total_charge = int(sp[0])
+                        self.total_multiplicity = int(sp[1])
+                        read_mol = True
+
+                        line = file.readline()
+                        sp = line.split()
+                        #   if next line is not a separator, we are not using multiple fragments
+                        if sp[0] not in ['-'*2, '-'*3, '-'*4]:
+                            read_mol = True
+                            self.fragments.append(_QC_Components())
+                            self.fragments[-1].charge = self.total_charge
+                            self.fragments[-1].multiplicity = self.total_multiplicity
+                        
+
+
+                    else:
+                        other_lines.append(line)
+                        line = file.readline()
+
+            self.n_frags = len(self.fragments)
+            self.other_lines = other_lines
+                
+
+        else:
+            raise FileNotFoundError(' QC file not found. Terminating program')
+
+    def input_lines(self):
+        lines = []
+        lines.append('$molecule\n')
+        lines.append('{:d} {:d}\n'.format(self.total_charge, self.total_multiplicity))
+        for n in range(self.n_frags):
+            frag = self.fragments[n]
+            if self.n_frags > 1:
+                lines.append('---\n')
+                lines.append('{:d} {:d}'.format(frag.charge, frag.multiplicity))
+            for i, coord in enumerate(frag.coords):
+                lines.append('{:2s}  {:15.8f}  {:15.8f}  {:15.8f}\n'.format(frag.atoms[i], *(coord)))
+        lines.append('$end\n')
+
+        return lines
+            
+    
 
 class XYZ(_Components):
     def __init__(self):
@@ -60,7 +167,7 @@ class XYZ(_Components):
                             self.frames[-1].n_atoms = int(line[0])
                             numAtoms = int(line[0])
                         elif count == 1:
-                            self.frames[-1].comment = line
+                            self.frames[-1].comment = line.strip('\n')
                         else:
                             line = line.split()
                             self.frames[-1].atoms.append(line[0])
@@ -119,10 +226,10 @@ class XYZ(_Components):
         '''
         for n in range(len(self.frames)):
             if n == 0:
-                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName)
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, comment=self.comment)
             else:
-                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a')
-        write_xyz(self.atoms, self.coords, fileName)
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a', comment=self.comment)
+        write_xyz(self.atoms, self.coords, fileName, comment=self.comment)
         #write_xyz(self.atoms, self.coords, fileName, filemode='a')
         
 
@@ -366,7 +473,7 @@ def import_qmol(fileLoc):
         print("\tTotal charge:    {:3d}".format(mols[n][0]))
     return mols
 
-def write_xyz(atoms, coords, xyzFile, filemode = 'w'):
+def write_xyz(atoms, coords, xyzFile, filemode = 'w', comment=""):
     '''
     write 'atoms' and 'coords' to a
     new XYZ file 'xyzFile'
@@ -376,8 +483,12 @@ def write_xyz(atoms, coords, xyzFile, filemode = 'w'):
         return
     with open(xyzFile, filemode) as file:
         file.write(str(int(n_atoms)) + "\n")
-        file.write("Generated xyz file\n")
+        if comment == "":
+            file.write("Generated xyz file\n")
+        else:
+            file.write(comment + " \n")
         for n in range(0, n_atoms):
+            print(coords)
             file.write("{:3s}  {:13.8f}  {:13.8f}  {:13.8f}\n"
                 .format(atoms[n], coords[n][0], coords[n][1], coords[n][2]))
 
