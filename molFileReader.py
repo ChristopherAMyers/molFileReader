@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import pi
 import os, sys
 
 class _Components:
@@ -198,15 +199,18 @@ class XYZ(_Components):
         self.atoms.append(atom)
         self.n_atoms += 1
 
-    def add_frame(self):
+    def add_frame(self, coords = np.array([]), comment = None):
         self.frames.append(_Components())
-        self.frames[-1].coords = self.coords
+        if len(coords) == 0:
+            self.frames[-1].coords = self.coords
+        else:
+            self.frames[-1].coords = np.copy(coords)
         self.frames[-1].atoms = self.atoms
         self.frames[-1].n_atoms = self.n_atoms
-        self.frames[-1].comment = self.comment
-        self.coords = []
-        self.atoms = []
-        self.n_atoms = 0
+        if comment == None:
+            self.frames[-1].comment = self.comment
+        else:
+            self.frames[-1].comment = comment
     
     def recenter(self, vec):
         '''
@@ -220,17 +224,28 @@ class XYZ(_Components):
         '''
         self.coords = orient_plane(self.coords, vec1, vec2)
 
+    def rotate_plane_xz(self, vec1, vec2):
+        '''
+        rotate coordinates so that 'vec1' and 'vec2' are in the xz-plane
+        '''
+        self.coords = orient_plane_xz(self.coords, vec1, vec2)
+
+    def rotate_plane_yz(self, vec1, vec2):
+        '''
+        rotate coordinates so that 'vec1' and 'vec2' are in the xz-plane
+        '''
+        self.coords = orient_plane_yz(self.coords, vec1, vec2)
+
     def write(self, fileName):
         '''
         write coordinates to a new XYZ file
         '''
         for n in range(len(self.frames)):
             if n == 0:
-                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, comment=self.comment)
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, comment=self.frames[n].comment)
             else:
-                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a', comment=self.comment)
-        write_xyz(self.atoms, self.coords, fileName, comment=self.comment)
-        #write_xyz(self.atoms, self.coords, fileName, filemode='a')
+                write_xyz(self.frames[n].atoms, self.frames[n].coords, fileName, filemode='a', comment=self.frames[n].comment)
+        #write_xyz(self.atoms, self.coords, fileName)
         
 
 class GRO(_Components):
@@ -406,6 +421,17 @@ def rotate_z(coords, phi):
 
     return newCoords
 
+def get_phi_spherical(vec):
+    x, y, z = np.array(vec)
+    if abs(x) <= 1E-8 and y > 0:
+        phi = pi/2
+    elif abs(x) <= 1E-8 and y < 0:
+        phi = 3*pi/2
+    else:
+        phi = np.arctan2(y, x)
+
+    return phi
+
 def orient_plane(coords, vec1, vec2):
     '''
     reorients 'coords' so that 'vec1' is along x-axis
@@ -421,7 +447,52 @@ def orient_plane(coords, vec1, vec2):
     allCoords = rotate_y(allCoords, theta)
 
     theta = np.pi*0.5 - np.arccos(allCoords[-1][2] / np.sqrt(allCoords[-1][1]**2 + allCoords[-1][2]**2))
-    allCoords = rotate_x(allCoords, -theta)
+    tmp = rotate_x(allCoords, -theta)
+    if abs(tmp[-1][2]) > 1E-8:
+        allCoords = rotate_x(allCoords, theta)
+    else:
+        allCoords = tmp
+
+    return allCoords[0:-2]
+
+def orient_plane_xz(coords, vec1, vec2):
+    '''
+    reorients 'coords' so that 'vec1' is along z-axis
+    and 'vec2' is in xz-plane
+    '''
+
+    allCoords = np.append(coords, np.array([vec1]), axis=0)
+    allCoords = np.append(allCoords, np.array([vec2]), axis = 0)
+
+    phi = get_phi_spherical(allCoords[-2])
+    allCoords = rotate_z(allCoords, -phi + pi*0.5)
+
+    theta = np.arccos(allCoords[-2][2] / np.linalg.norm(allCoords[-2]))
+    allCoords = rotate_x(allCoords, -theta + pi)
+
+    phi = get_phi_spherical(allCoords[-1])
+    allCoords = rotate_z(allCoords, -phi)
+
+    return allCoords[0:-2]
+
+def orient_plane_yz(coords, vec1, vec2):
+    '''
+    reorients 'coords' so that 'vec1' is along z-axis
+    and 'vec2' is in yz-plane
+    '''
+
+    allCoords = np.append(coords, np.array([vec1]), axis=0)
+    allCoords = np.append(allCoords, np.array([vec2]), axis = 0)
+
+    phi = get_phi_spherical(allCoords[-2])
+    allCoords = rotate_z(allCoords, -phi + pi*0.5)
+
+    theta = np.arccos(allCoords[-2][2] / np.linalg.norm(allCoords[-2]))
+    allCoords = rotate_x(allCoords, -theta + pi)
+
+    phi = get_phi_spherical(allCoords[-1])
+    allCoords = rotate_z(allCoords, -phi + pi/2)
+
     return allCoords[0:-2]
 
 def import_qmol(fileLoc):
@@ -473,7 +544,7 @@ def import_qmol(fileLoc):
         print("\tTotal charge:    {:3d}".format(mols[n][0]))
     return mols
 
-def write_xyz(atoms, coords, xyzFile, filemode = 'w', comment=""):
+def write_xyz(atoms, coords, xyzFile, filemode = 'w', comment="Generated xyz file"):
     '''
     write 'atoms' and 'coords' to a
     new XYZ file 'xyzFile'
